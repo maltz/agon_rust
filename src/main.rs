@@ -16,12 +16,12 @@ use futures::{Future, Stream};
 
 extern crate agon_rust;
 use agon_rust::decode_document;
-use agon_rust::serving::request;
+// use agon_rust::serving::request;
 
-mod model;
-use model::{ ClassifyResults };
+// mod model;
+// use model::{ ClassifyResults };
 
-const ADDR: &str = "35.190.227.116:8500";
+// const ADDR: &str = "35.190.227.116:8500";
 
 fn classify(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     println!("model: {:?}", req);
@@ -33,9 +33,9 @@ fn classify(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
             let (url, decoded_doc, is_get_all_text) = decode_document::decode(body).map_err(|e| {
                 error::ErrorBadRequest(e)
             })?;
-            println!("{}", url);
-            println!("{}", decoded_doc);
-            println!("{}", is_get_all_text);
+            // println!("{}", url);
+            // println!("{}", decoded_doc);
+            // println!("{}", is_get_all_text);
             if decoded_doc.len() == 0 {
                 println!("decoded_doc length is 0");
             }
@@ -43,7 +43,7 @@ fn classify(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
             // let result = request(ADDR, &decoded_doc).unwrap();
             // println!("{:?}", result);
 
-            let classify_results = ClassifyResults::dummy();
+            // let classify_results = ClassifyResults::dummy();
             
             Ok(HttpResponse::Ok()
                 .content_type("plain/text")
