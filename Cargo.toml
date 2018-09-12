@@ -1,0 +1,26 @@
+[package]
+name = "agon_rust"
+version = "0.1.0"
+authors = ["s01071"]
+
+[dependencies]
+futures = "0.1"
+
+bytes           = { version = "0.4.5"  , optional = true }
+futures-cpupool = { version = "0.1"    , optional = true }
+grpcio      = { version = "0.1"}
+protobuf    = { version = "1.*"    , features = [ "with-bytes" ] }
+
+env_logger = "*"
+
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+json = "*"
+
+actix = "0.5"
+actix-web = "^0.6"
+
+[features]
+default = [ "bytes", "futures-cpupool" ]
+

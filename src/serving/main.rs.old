@@ -1,0 +1,110 @@
+extern crate futures;
+extern crate futures_cpupool;
+extern crate grpcio;
+extern crate tf_serving;
+extern crate bytes;
+
+use futures::Future;
+use futures::future::join_all;
+use futures_cpupool::CpuPool;
+use grpcio::{ChannelBuilder, EnvBuilder};
+use std::sync::Arc;
+use tf_serving::prediction_service_grpc::PredictionServiceClient;
+
+use bytes::BufMut;
+use tf_serving::model::ModelSpec;
+use tf_serving::predict::PredictRequest;
+use tf_serving::tensor::TensorProto;
+use tf_serving::tensor_shape::{TensorShapeProto, TensorShapeProto_Dim};
+use tf_serving::types::DataType;
+use std::time::Instant;
+
+fn predict_request<'a>(image: &'a [i32], name: &str) -> PredictRequest {
+    let mut model_spec = ModelSpec::new();
+    model_spec.set_name(name.into());
+    model_spec.set_signature_name("serving_default".into());
+
+    let mut request = PredictRequest::new();
+    request.set_model_spec(model_spec);
+    request.inputs.insert("inputs".into(), to_proto(image));
+
+    request
+}
+
+fn encode<'a>(input: &'a [i32]) -> Vec<u8> {
+    let mut buf = vec![];
+    for i in input {
+        buf.put_i32_le(*i);
+    }
+    buf
+}
+
+fn to_proto<'a>(image: &'a [i32]) -> TensorProto {
+    let mut image_proto = TensorProto::new();
+    image_proto.set_dtype(DataType::DT_INT32);
+
+    // Set shape
+    let mut shape = TensorShapeProto::new();
+    let mut dim = TensorShapeProto_Dim::new();
+    dim.set_size(1);
+    shape.dim.insert(0, dim);
+
+    let mut dim = TensorShapeProto_Dim::new();
+    dim.set_size(50);
+    shape.dim.insert(1, dim);
+    image_proto.set_tensor_shape(shape);
+
+    // Set content
+    image_proto.set_tensor_content(encode(&image));
+
+    image_proto
+}
+
+const CATEGORY: &[&str] = &[
+        "adult",
+        "accident",
+        "death",
+        "violence",
+        "gossip",
+        "religion",
+        "discrimination",
+        "international_criticism",
+        "politics",
+        "drug",
+        "illegal_downloading",
+        "dating",
+        "legal_consulting",
+        "cigarette",
+        "alcohol",
+        "gambling"
+    ];
+
+fn main() {
+
+    let x = vec![1;50];
+
+    let pool = CpuPool::new_num_cpus();
+
+    let env = Arc::new(EnvBuilder::new().build());
+    let ch = ChannelBuilder::new(env).connect("35.200.118.246:8500");
+    let client = PredictionServiceClient::new(ch);
+
+    let start = Instant::now();
+    let tasks = CATEGORY.into_iter().map(|name| {
+        let request = predict_request(&x.as_slice(), name);
+        let predict = client.predict_async(request).map(move |response| {
+            let output = response.get_outputs();
+            let output = output.get("outputs").unwrap();
+            let scores = &output.float_val;
+            (name, scores[0])
+        });
+        pool.spawn(predict)
+    }).collect::<Vec<_>>();
+
+    let result = join_all(tasks).wait().unwrap();
+    let result_map: std::collections::HashMap<_, _> = result.into_iter().collect();
+    println!("{:?}", result_map);
+
+    let elapsed = start.elapsed();
+    println!("Elapsed: {} ms",(elapsed.as_secs() * 1_000) + (elapsed.subsec_nanos() / 1_000_000) as u64);
+}
